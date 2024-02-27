@@ -103,13 +103,16 @@ image_shape = images_np.shape
 # Print the shape to confirm if it's a 2D array
 print("Shape of images_np:", image_shape)
 
-kernel = np.array([[1, 0, -1],
-                   [1, 0, -1],
-                   [1, 0, -1]], dtype=np.float32)
-kernel.shape
-
 # CNN model
 import numpy as np
+
+kernel1 = np.array([[-1, -1, -1],
+                    [-1, 8, -1],
+                    [-1, -1, -1]])  # Edge detection kernel
+
+kernel2 = np.array([[0, -1, 0],
+                    [-1, 5, -1],
+                    [0, -1, 0]])  # Sharpening kernel
 
 
 def convolution2d(image, kernel):
@@ -156,41 +159,166 @@ def relu(x):
 
 
 def max_pooling2d(image, pool_size=(2, 2)):
-    """
-    Perform 2D max pooling on an image.
-
-    Args:
-    image (numpy.ndarray): Input grayscale image (height x width).
-    pool_size (tuple): Pooling window size (p_height x p_width).
-
-    Returns:
-    numpy.ndarray: Pooled image.
-    """
-    if len(image.shape) != 2:
-        raise ValueError("Input image should be a 2D array.")
-
     p_h, p_w = pool_size
     h, w = image.shape
     pooled_h = h // p_h
     pooled_w = w // p_w
 
-    # Initialize the pooled image
     pooled_image = np.zeros((pooled_h, pooled_w))
 
-    # Perform max pooling
     for i in range(pooled_h):
         for j in range(pooled_w):
-            break
+            region = image[i * p_h:(i + 1) * p_h, j * p_w:(j + 1) * p_w]
+            pooled_image[i, j] = np.max(region)
 
     return pooled_image
 
+def apply_two_layer_convolution(image):
+    """
+    Apply two layers of convolution, ReLU, and max pooling to an image.
 
-# Example usage:
-if __name__ == "__main__":
-    # Create a simple grayscale image (8x8) and a kernel (3x3)
-    image = np.array([[1, 2, 3, 4, 5, 6, 7, 8],
-                      [8, 7, 6, 5, 4, 3, 2, 1],
-                      [1, 2, 3, 4, 5, 6, 7, 8],
-                      [8, 7, 6, 5, 4, 3, 2, 1],
-                      [1, 2, 3, 4, 5, 6, 7, 8],
-                      [8, 7, 6]])
+    Args:
+    image (numpy.ndarray): The input grayscale image.
+
+    Returns:
+    numpy.ndarray: The output image after two layers of processing.
+    """
+    # First layer
+    conv1 = convolution2d(image, kernel1)
+    relu1 = relu(conv1)
+    pool1 = max_pooling2d(relu1)
+
+    # Second layer
+    conv2 = convolution2d(pool1, kernel2)
+    relu2 = relu(conv2)
+    pool2 = max_pooling2d(relu2)
+
+    return pool2
+
+
+def transform_dataset_with_convolution(dataset):
+    """
+    Apply the two-layer convolution process to each image in the dataset.
+
+    Args:
+    dataset (numpy.ndarray): A batch of images.
+
+    Returns:
+    numpy.ndarray: The transformed batch of images.
+    """
+    # Initialize a list to hold the transformed images
+    transformed_images = []
+
+    # Loop over each image in the dataset
+    for image in dataset:
+        # Apply the two-layer convolution process
+        transformed_image = apply_two_layer_convolution(image)
+        # Append the transformed image to our list
+        transformed_images.append(transformed_image)
+
+    # Convert the list back to a NumPy array
+    return np.array(transformed_images)
+
+
+# Apply the transformation to each of your datasets
+# Assuming the function transform_dataset_with_convolution is already defined and works as intended
+
+# Apply the transformation to the first 100 images of each dataset
+X_train_transformed_100 = transform_dataset_with_convolution(X_train[:100])
+X_val_transformed_100 = transform_dataset_with_convolution(X_val[:100])
+X_test_transformed_100 = transform_dataset_with_convolution(X_test[:100])
+
+# Now, X_train_transformed, X_val_transformed, and X_test_transformed contain the images
+# after undergoing two layers of convolution, ReLU, and max pooling operations.
+
+import matplotlib.pyplot as plt
+
+
+def visualize_cnn_steps(images, titles):
+    """
+    Visualize a list of images in a single row with their respective titles.
+
+    Args:
+    images (list of numpy.ndarray): The images to be visualized in a single row.
+    titles (list of str): Titles for each image.
+    """
+    n = len(images)  # Number of images (and titles)
+    plt.figure(figsize=(n * 4, 4))  # Adjust the figure size as needed
+
+    for i, (image, title) in enumerate(zip(images, titles)):
+        plt.subplot(1, n, i + 1)  # 1 row, n columns, ith subplot
+        plt.imshow(image, cmap='gray')
+        plt.title(title)
+        plt.axis('off')
+    plt.show()
+
+
+def apply_and_visualize_cnn_operations_for_selected_images(images, kernel1, kernel2, pool_size=(2, 2),
+                                                           visualize_indices=[0, 1, 2, 3, 4]):
+    """
+    Apply two sets of convolution, ReLU activation, and max pooling to selected images
+    and visualize the results for each selected image.
+    """
+    for idx in visualize_indices:
+        image = images[idx]
+        print(f"Visualizing operations for Image {idx + 1}: 1st Convolutional Layer")
+        # First Convolutional Layer Operations
+        convolved1 = convolution2d(image, kernel1)
+        activated1 = relu(convolved1)
+        pooled1 = max_pooling2d(activated1, pool_size)
+        visualize_cnn_steps([image, convolved1, activated1, pooled1],
+                            ["Original", "1st Convolution", "1st ReLU", "1st Pooling"])
+
+        print(f"Visualizing operations for Image {idx + 1}: 2nd Convolutional Layer")
+        # Second Convolutional Layer Operations
+        convolved2 = convolution2d(pooled1, kernel2)
+        activated2 = relu(convolved2)
+        pooled2 = max_pooling2d(activated2, pool_size)
+        visualize_cnn_steps([image, convolved2, activated2, pooled2],
+                            ["Original", "2nd Convolution", "2nd ReLU", "2nd Pooling"])
+
+
+# Apply the CNN operations and visualize the process for the first 5 images
+apply_and_visualize_cnn_operations_for_selected_images(images, kernel1, kernel2, visualize_indices=[7, 11, 31, 51, 81])
+
+
+def categorical_cross_entropy_loss(predictions, true_labels):
+    """
+    Calculate the categorical cross-entropy loss.
+
+    Args:
+        predictions (numpy.ndarray): The predictions from the model, shape (n_samples, n_classes), probabilities.
+        true_labels (numpy.ndarray): The true labels, one-hot encoded, shape (n_samples, n_classes).
+
+    Returns:
+        float: The average categorical cross-entropy loss over all samples.
+    """
+    # Small value to avoid log(0)
+    epsilon = 1e-12
+    predictions = np.clip(predictions, epsilon, 1. - epsilon)
+    # Calculate the loss for each sample and class
+    loss = -np.sum(true_labels * np.log(predictions)) / predictions.shape[0]
+    return loss
+
+
+# Step 1: Initialize a list to store the loss values
+loss_values = []
+
+# This is a simplified loop to simulate the training process
+for epoch in range(1, 101):  # Let's say you are training for 100 epochs
+    # Step 2: Calculate loss here (this is a dummy value for the sake of example)
+    loss = 1 / epoch  # Dummy example to simulate decreasing loss
+
+    # Record the loss value
+    loss_values.append(loss)
+
+    # Optionally, print the loss every few epochs
+    if epoch % 10 == 0:
+        print(f"Epoch {epoch}, Loss: {loss}")
+
+# Step 3: Plot the loss values
+plt.plot(loss_values)
+plt.title("Training Loss")
+plt.xlabel("Epoch")
+plt.ylabel("Loss")
+plt.show()
